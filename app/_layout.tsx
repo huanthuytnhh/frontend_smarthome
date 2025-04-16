@@ -14,11 +14,16 @@ export default function RootLayout() {
         setIsLoggedIn(true);
       } else {
         setIsLoggedIn(false);
-        router.replace('/login'); // Redirect to login if not logged in
       }
     };
     checkLoginStatus();
   }, []);
+
+  useEffect(() => {
+    if (isLoggedIn === false) {
+      router.replace('/login'); // Redirect to login if not logged in
+    }
+  }, [isLoggedIn]);
 
   if (isLoggedIn === null) {
     // Show a loading indicator while checking login status

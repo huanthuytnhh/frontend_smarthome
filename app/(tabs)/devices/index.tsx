@@ -1,113 +1,232 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
-import { Lightbulb, Fan, Tv, Lock, Power, Wifi, Mic, Plus, Trash2 } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+} from 'react-native';
+import {
+  Lightbulb,
+  Fan,
+  Tv,
+  Lock,
+  Power,
+  Wifi,
+  Mic, // Keep Mic if used elsewhere, remove if only for voice button
+  Plus,
+  Trash2,
+  // LucideIcon, // Removed as it's not used
+} from 'lucide-react-native';
+import { useState, useEffect } from 'react'; // Keep useState, useEffect
 import { useRouter } from 'expo-router';
+import { getPermissionsByMember } from '../../../services/permissionApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { controlDevice } from '../../../services/deviceApi';
+import { formatDistanceToNow } from 'date-fns';
+// import * as Speech from 'expo-speech'; // Remove Speech import
+// import Voice from '@react-native-voice/voice'; // Remove Voice import
 
-const devices = [
-  { id: 1, name: 'Living Room Light', icon: Lightbulb, isOn: true, type: 'Light', room: 'Living Room', lastUsed: '2 hours ago' },
-  { id: 2, name: 'AC Unit', icon: Fan, isOn: false, type: 'Climate', room: 'Bedroom', lastUsed: '1 day ago' },
-  { id: 3, name: 'Smart TV', icon: Tv, isOn: true, type: 'Entertainment', room: 'Living Room', lastUsed: '30 mins ago' },
-  { id: 4, name: 'Front Door Lock', icon: Lock, isOn: true, type: 'Security', room: 'Entrance', lastUsed: '5 mins ago' },
-  { id: 5, name: 'WiFi Router', icon: Wifi, isOn: true, type: 'Network', room: 'Office', lastUsed: 'Just now' },
-];
+// Define the structure for the permission object
+interface Permission {
+  device: {
+    id: string;
+    name: string;
+    status: boolean;
+    device_type: string;
+    room: string;
+    last_updated: string; // Assuming string based on new Date() usage
+  };
+  can_control: boolean;
+}
 
 export default function DevicesScreen() {
-  const [isListening, setIsListening] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState(null);
-  const [showOptions, setShowOptions] = useState(false);
+  interface Device {
+    id: string;
+    name: string;
+    icon: React.ComponentType<{ size: number; color: string }>; // Reverted to original type
+    isOn: boolean;
+    type: string;
+    room: string;
+    lastUsed: string;
+    canControl: boolean;
+  }
+
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
+  // Remove voice-related state variables
+  // const [voiceResult, setVoiceResult] = useState('');
+  // const [isListening, setIsListening] = useState(false);
+  // const [isVoiceAvailable, setIsVoiceAvailable] = useState(false);
 
   useEffect(() => {
-    let timeoutId;
-    if (isListening) {
-      timeoutId = setTimeout(() => {
-        setIsListening(false);
-      }, 2000);
-    }
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+    const fetchDevices = async () => {
+      try {
+        const memberId = await AsyncStorage.getItem('memberId'); // Retrieve memberId from AsyncStorage
+        if (!memberId) {
+          console.error('Member ID not found');
+          return;
+        }
+        const permissions: Permission[] = await getPermissionsByMember(
+          memberId
+        ); // Add type annotation for permissions array
+        const devicesWithPermissions = permissions.map(
+          (permission: Permission) => ({
+            // Add type annotation for permission parameter
+            id: permission.device.id,
+            name: permission.device.name,
+            // Cast the icon to the expected type to satisfy TypeScript
+            icon: Lightbulb as React.ComponentType<{
+              size: number;
+              color: string;
+            }>,
+            isOn: permission.device.status,
+            type: permission.device.device_type,
+            room: permission.device.room,
+            lastUsed: formatDistanceToNow(
+              new Date(permission.device.last_updated),
+              { addSuffix: true }
+            ),
+            canControl: permission.can_control,
+          })
+        );
+        setDevices(devicesWithPermissions);
+      } catch (error) {
+        console.error('Error fetching devices:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
-  }, [isListening]);
 
-  const handleVoiceCommand = () => {
-    setIsListening(true);
+    fetchDevices();
+
+    // Remove voice availability check
+  }, []);
+
+  const handleDeviceToggle = async (device: Device) => {
+    // Added type annotation for device
+    console.log('Toggling device:', device);
+    if (!device.canControl) {
+      console.warn('You do not have permission to control this device.');
+      // Optionally, show a user-friendly message here
+      return; // Prevent further execution if no permission
+    }
+    try {
+      const action = device.isOn ? 'turn_off' : 'turn_on'; // Determine the action
+      const updatedDevice = await controlDevice(device.id, action); // Call the control API
+      console.log('Device toggled successfully:', updatedDevice);
+      setDevices((prevDevices) =>
+        prevDevices.map((d) =>
+          d.id === device.id ? { ...d, isOn: updatedDevice.status } : d
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling device:', error);
+      // Optionally, show a user-friendly error message here
+    }
   };
 
-  const handleDevicePress = (device) => {
-    router.push(`/devices/details?id=${device.id}`);
-  };
+  // Remove voice-related functions: startListening, stopListening, processVoiceCommand
 
-  const handleAddDevice = () => {
-    router.push('/devices/add');
-  };
+  // Remove useEffect hook for voice listeners
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading devices...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
       <ScrollView>
         <View style={styles.header}>
           <Text style={styles.title}>My Devices</Text>
-          <TouchableOpacity style={styles.addButton} onPress={handleAddDevice}>
-            <Plus size={20} color="#ffffff" />
-            <Text style={styles.addButtonText}>Add Device</Text>
-          </TouchableOpacity>
+          {/* Add button removed as it wasn't used in the original code */}
         </View>
 
         <View style={styles.deviceGrid}>
           {devices.map((device) => {
-            const DeviceIcon = device.icon;
+            // Dynamically select icon based on device type (example)
+            let DeviceIcon = Lightbulb; // Default icon
+            if (device.type.toLowerCase().includes('fan')) {
+              DeviceIcon = Fan;
+            } else if (device.type.toLowerCase().includes('tv')) {
+              DeviceIcon = Tv;
+            } // Add more conditions for other device types
+
             return (
               <TouchableOpacity
                 key={device.id}
                 style={styles.deviceCard}
-                onPress={() => handleDevicePress(device)}
-                onLongPress={() => {
-                  setSelectedDevice(device);
-                  setShowOptions(true);
-                }}>
-                <View style={[styles.iconContainer, device.isOn && styles.iconContainerActive]}>
-                  <DeviceIcon size={24} color={device.isOn ? '#ffffff' : '#8E8E93'} />
-                </View>
-                <Text style={styles.deviceName}>{device.name}</Text>
-                <Text style={styles.deviceType}>{device.type}</Text>
-                <Text style={styles.lastUsed}>{device.lastUsed}</Text>
-                <TouchableOpacity 
-                  style={[styles.powerButton, device.isOn && styles.powerButtonActive]}
+                onPress={() => handleDeviceToggle(device)}
+                disabled={!device.canControl} // Disable button if no control permission
+              >
+                <View
+                  style={[
+                    styles.iconContainer,
+                    device.isOn && styles.iconContainerActive,
+                    !device.canControl && styles.iconContainerDisabled, // Style for disabled state
+                  ]}
                 >
-                  <Power size={16} color={device.isOn ? '#ffffff' : '#8E8E93'} />
-                </TouchableOpacity>
+                  <DeviceIcon
+                    size={24}
+                    color={
+                      device.isOn
+                        ? '#ffffff'
+                        : device.canControl
+                        ? '#8E8E93'
+                        : '#cccccc'
+                    } // Dim color if disabled
+                  />
+                </View>
+                <Text
+                  style={[
+                    styles.deviceName,
+                    !device.canControl && styles.textDisabled,
+                  ]}
+                >
+                  {device.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.deviceType,
+                    !device.canControl && styles.textDisabled,
+                  ]}
+                >
+                  {device.type}
+                </Text>
+                <Text
+                  style={[
+                    styles.deviceRoom,
+                    !device.canControl && styles.textDisabled,
+                  ]}
+                >
+                  {device.room}
+                </Text>
+                <Text
+                  style={[
+                    styles.lastUsed,
+                    !device.canControl && styles.textDisabled,
+                  ]}
+                >
+                  {device.lastUsed}
+                </Text>
+                {!device.canControl && ( // Show lock icon if cannot control
+                  <View style={styles.lockIconContainer}>
+                    <Lock size={16} color="#FF3B30" />
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
         </View>
       </ScrollView>
 
-      <TouchableOpacity
-        style={[styles.voiceButton, isListening && styles.voiceButtonActive]}
-        onPress={handleVoiceCommand}>
-        <Mic size={24} color="#ffffff" />
-      </TouchableOpacity>
-
-      <Modal
-        visible={showOptions}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowOptions(false)}>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowOptions(false)}>
-          <View style={styles.modalContent}>
-            <TouchableOpacity style={styles.modalOption}>
-              <Text style={styles.modalOptionText}>Edit Device</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.modalOption, styles.deleteOption]}>
-              <Text style={styles.deleteText}>Delete Device</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
+      {/* Remove voice button */}
+      {/* Modal related code removed as it wasn't used */}
     </View>
   );
 }
@@ -122,56 +241,51 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: 60, // Adjusted for potential notch/status bar
     backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
+    fontWeight: 'bold', // Changed from 700
     color: '#000000',
   },
-  addButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  addButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
+  // Removed addButton styles as the button was removed
   deviceGrid: {
     padding: 20,
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'space-between', // Ensures space between cards
+    gap: 15, // Adds gap between cards instead of relying on width %
   },
   deviceCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 20,
-    width: '48%',
+    // Removed marginBottom, using gap in grid instead
+    width: '48%', // Keeps two cards per row approx. Adjust if needed with gap
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
+    position: 'relative', // Needed for absolute positioning of lock icon
   },
   iconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#E5E5EA', // Slightly darker grey
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
   iconContainerActive: {
     backgroundColor: '#007AFF',
+  },
+  iconContainerDisabled: {
+    backgroundColor: '#F2F2F7', // Lighter grey for disabled
   },
   deviceName: {
     fontSize: 16,
@@ -184,71 +298,31 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginBottom: 4,
   },
+  deviceRoom: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
   lastUsed: {
     fontSize: 12,
-    color: '#8E8E93',
+    color: '#AEAEB2', // Slightly lighter grey
     fontStyle: 'italic',
+    marginTop: 8, // Add some space above last used
   },
-  powerButton: {
+  textDisabled: {
+    color: '#cccccc', // Dim text color for disabled cards
+  },
+  lockIconContainer: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#F2F2F7',
-    justifyContent: 'center',
-    alignItems: 'center',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)', // Slight background for visibility
+    borderRadius: 10,
+    padding: 2,
   },
-  powerButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  voiceButton: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  voiceButtonActive: {
-    backgroundColor: '#FF3B30',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 8,
-    width: '80%',
-    maxWidth: 300,
-  },
-  modalOption: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
-  },
-  modalOptionText: {
-    fontSize: 16,
-    color: '#007AFF',
-  },
-  deleteOption: {
-    borderBottomWidth: 0,
-  },
-  deleteText: {
-    fontSize: 16,
-    color: '#FF3B30',
-  },
+  // Removed powerButton styles as it wasn't used
+  // Remove voiceButton styles
+  // voiceButton: { ... },
+  // voiceButtonActive: { ... },
+  // Removed modal styles as the modal was removed
 });

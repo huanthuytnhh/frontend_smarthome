@@ -33,8 +33,17 @@ export default function LoginScreen() {
       const data = await loginUser({ username, password });
       console.log('Login successful:', data);
 
-      // Store user token in AsyncStorage
+      // Store user token and member ID in AsyncStorage
       await AsyncStorage.setItem('userToken', data.token);
+      if (data.user_id) {
+        await AsyncStorage.setItem('memberId', data.user_id.toString()); // Store user_id as memberId
+        console.log('Member ID:', data.user_id); // Log the member ID
+      }
+
+      const storedMemberId = await AsyncStorage.getItem('memberId');
+      console.log('Stored Member ID:', storedMemberId); // Log the stored member ID
+
+      console.log('Response Data:', data); // Log the full response data
 
       // Navigate to the main app screen
       router.replace('/(tabs)');
