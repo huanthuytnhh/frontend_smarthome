@@ -81,6 +81,8 @@ export const getPermissionsByMember = async (memberId) => {
     const response = await permissionApi.get(
       `/permissions/member/${memberId}/`
     );
+    console.log('Response data:', response.data);
+    // Kiểm tra xem response.data có phải là một mảng hay không
     return response.data;
   } catch (error) {
     console.error('Error fetching permissions by member:', error);

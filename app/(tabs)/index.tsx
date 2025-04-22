@@ -6,7 +6,7 @@ export default function HomeScreen() {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.greeting}>Welcome Home</Text>
-        <Text style={styles.subGreeting}>Good morning, User</Text>
+        <Text style={styles.subGreeting}>Good morning, Sir</Text>
       </View>
 
       <View style={styles.quickStats}>
@@ -63,7 +63,15 @@ const styles = StyleSheet.create({
   header: {
     padding: 20,
     paddingTop: 60,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#E0F0FF', // Light blue for distinction
+    borderRadius: 20,
+    margin: 20,
+    marginBottom: 0,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
   },
   greeting: {
     fontSize: 28,

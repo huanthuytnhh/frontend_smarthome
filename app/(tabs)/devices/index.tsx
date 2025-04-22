@@ -68,15 +68,16 @@ export default function DevicesScreen() {
           console.error('Member ID not found');
           return;
         }
-        const permissions: Permission[] = await getPermissionsByMember(
-          memberId
-        ); // Add type annotation for permissions array
+        const permissions: Permission[] = await getPermissionsByMember(memberId);
+        if (!Array.isArray(permissions)) {
+          console.error('Permissions response is not an array:', permissions);
+          setDevices([]);
+          return;
+        }
         const devicesWithPermissions = permissions.map(
           (permission: Permission) => ({
-            // Add type annotation for permission parameter
             id: permission.device.id,
             name: permission.device.name,
-            // Cast the icon to the expected type to satisfy TypeScript
             icon: Lightbulb as React.ComponentType<{
               size: number;
               color: string;
@@ -100,7 +101,6 @@ export default function DevicesScreen() {
     };
 
     fetchDevices();
-
     // Remove voice availability check
   }, []);
 
